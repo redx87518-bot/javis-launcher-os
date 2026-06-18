@@ -1,6 +1,5 @@
 package com.javis.launcher.ui.onboarding
 
-import android.content.SharedPreferences
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.*
@@ -20,7 +19,6 @@ import androidx.navigation.NavController
 import com.javis.launcher.ui.home.components.AiCore
 import com.javis.launcher.data.model.CoreState
 import com.javis.launcher.ui.theme.*
-import javax.inject.Inject
 
 @Composable
 fun OnboardingScreen(

@@ -4,6 +4,8 @@ import androidx.room.*
 import com.javis.launcher.data.model.*
 import kotlinx.coroutines.flow.Flow
 
+typealias InstalledAppEntity = com.javis.launcher.data.model.InstalledAppEntity
+
 @Dao
 interface ConversationDao {
     @Query("SELECT * FROM conversation_history ORDER BY timestamp DESC LIMIT 50")

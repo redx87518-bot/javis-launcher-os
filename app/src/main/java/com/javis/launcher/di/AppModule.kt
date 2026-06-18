@@ -49,65 +49,42 @@ object AppModule {
         })
         .build()
 
+    // ── AI Services (one provider per service, no duplicate @Named bindings) ────
+
     @Provides
     @Singleton
     @Named("openrouter")
-    fun provideOpenRouterRetrofit(okHttpClient: OkHttpClient): Retrofit =
+    fun provideOpenRouterService(okHttpClient: OkHttpClient): AiApiService =
         buildRetrofit(BuildConfig.OPENROUTER_BASE_URL, okHttpClient)
+            .create(AiApiService::class.java)
 
     @Provides
     @Singleton
     @Named("groq")
-    fun provideGroqRetrofit(okHttpClient: OkHttpClient): Retrofit =
+    fun provideGroqService(okHttpClient: OkHttpClient): AiApiService =
         buildRetrofit(BuildConfig.GROQ_BASE_URL, okHttpClient)
+            .create(AiApiService::class.java)
 
     @Provides
     @Singleton
     @Named("deepseek")
-    fun provideDeepSeekRetrofit(okHttpClient: OkHttpClient): Retrofit =
+    fun provideDeepSeekService(okHttpClient: OkHttpClient): AiApiService =
         buildRetrofit(BuildConfig.DEEPSEEK_BASE_URL, okHttpClient)
+            .create(AiApiService::class.java)
 
     @Provides
     @Singleton
     @Named("together")
-    fun provideTogetherRetrofit(okHttpClient: OkHttpClient): Retrofit =
+    fun provideTogetherService(okHttpClient: OkHttpClient): AiApiService =
         buildRetrofit(BuildConfig.TOGETHER_BASE_URL, okHttpClient)
+            .create(AiApiService::class.java)
 
     @Provides
     @Singleton
     @Named("fireworks")
-    fun provideFireworksRetrofit(okHttpClient: OkHttpClient): Retrofit =
+    fun provideFireworksService(okHttpClient: OkHttpClient): AiApiService =
         buildRetrofit(BuildConfig.FIREWORKS_BASE_URL, okHttpClient)
-
-    @Provides
-    @Singleton
-    @Named("openrouter")
-    fun provideOpenRouterService(@Named("openrouter") retrofit: Retrofit): AiApiService =
-        retrofit.create(AiApiService::class.java)
-
-    @Provides
-    @Singleton
-    @Named("groq")
-    fun provideGroqService(@Named("groq") retrofit: Retrofit): AiApiService =
-        retrofit.create(AiApiService::class.java)
-
-    @Provides
-    @Singleton
-    @Named("deepseek")
-    fun provideDeepSeekService(@Named("deepseek") retrofit: Retrofit): AiApiService =
-        retrofit.create(AiApiService::class.java)
-
-    @Provides
-    @Singleton
-    @Named("together")
-    fun provideTogetherService(@Named("together") retrofit: Retrofit): AiApiService =
-        retrofit.create(AiApiService::class.java)
-
-    @Provides
-    @Singleton
-    @Named("fireworks")
-    fun provideFireworksService(@Named("fireworks") retrofit: Retrofit): AiApiService =
-        retrofit.create(AiApiService::class.java)
+            .create(AiApiService::class.java)
 
     @Provides
     @Singleton

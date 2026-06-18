@@ -13,6 +13,7 @@ import com.javis.launcher.data.local.AppDao
 import com.javis.launcher.data.local.FavoriteContactDao
 import com.javis.launcher.data.local.NotificationCacheDao
 import com.javis.launcher.data.local.TaskDao
+import com.javis.launcher.data.local.InstalledAppEntity
 import com.javis.launcher.data.model.*
 import com.javis.launcher.tasks.TaskPlanner
 import com.javis.launcher.voice.VoiceManager
@@ -180,7 +181,7 @@ class HomeViewModel @Inject constructor(
             }
             val apps = pm.queryIntentActivities(intent, PackageManager.GET_META_DATA)
             val entities = apps.map { info ->
-                com.javis.launcher.data.local.InstalledAppEntity(
+                InstalledAppEntity(
                     packageName = info.activityInfo.packageName,
                     appName = info.loadLabel(pm).toString(),
                     category = getCategoryForPackage(info.activityInfo.packageName)

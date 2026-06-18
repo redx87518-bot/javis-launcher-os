@@ -1,6 +1,5 @@
 package com.javis.launcher.ui.settings
 
-import android.content.SharedPreferences
 import androidx.compose.animation.*
 import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
@@ -58,7 +57,7 @@ fun SettingsScreen(
                 SettingsSectionHeader(icon = Icons.Default.Psychology, title = "AI PROVIDERS")
             }
 
-            items(AiProvider.values().filter { it != AiProvider.OFFLINE }) { provider ->
+            items(AiProvider.entries.filter { it != AiProvider.OFFLINE }) { provider ->
                 AiProviderCard(
                     provider = provider,
                     viewModel = viewModel,
@@ -165,7 +164,7 @@ fun AiProviderCard(
 
         AnimatedVisibility(visible = expanded) {
             Column(modifier = Modifier.padding(horizontal = 16.dp).padding(bottom = 16.dp)) {
-                Divider(color = JavisGlassBorder)
+                HorizontalDivider(color = JavisGlassBorder)
                 Spacer(Modifier.height(12.dp))
 
                 // Enabled toggle
@@ -265,7 +264,7 @@ fun ElevenLabsCard(viewModel: SettingsViewModel) {
         Spacer(Modifier.height(12.dp))
         JavisTextField(value = apiKey, onValueChange = { apiKey = it; viewModel.setElevenLabsKey(it) }, label = "ElevenLabs API Key", isPassword = true)
         Spacer(Modifier.height(8.dp))
-        JavisTextField(value = voiceId, onValueChange = { voiceId = it; viewModel.setVoiceId(it) }, label = "Voice ID (default: Adam)")
+        JavisTextField(value = voiceId, onValueChange = { voiceId = it; viewModel.setVoiceId(it) }, label = "Voice ID (default: pNInz6obpgDQGcFmaJgB — Adam)")
         Spacer(Modifier.height(12.dp))
         Text("Voice Speed: ${String.format("%.1f", speed)}x", style = MaterialTheme.typography.bodySmall.copy(color = JavisTextSecondary))
         Slider(
@@ -405,10 +404,10 @@ fun JavisTextField(value: String, onValueChange: (String) -> Unit, label: String
 }
 
 private fun getProviderDescription(provider: AiProvider) = when (provider) {
-    AiProvider.OPENROUTER -> "Access 100+ models including free tiers"
-    AiProvider.GROQ -> "Ultra-fast inference, Llama 3 & Mixtral"
-    AiProvider.DEEPSEEK -> "DeepSeek-V2 & DeepSeek-Coder"
+    AiProvider.OPENROUTER -> "Access 100+ models — free tiers available"
+    AiProvider.GROQ -> "Ultra-fast Llama 3 & Mixtral inference"
+    AiProvider.DEEPSEEK -> "DeepSeek-V2.5 & DeepSeek-Coder"
     AiProvider.TOGETHER -> "Open-source models, fast & affordable"
     AiProvider.FIREWORKS -> "Blazing fast inference, many models"
-    AiProvider.OFFLINE -> "Local offline inference"
+    AiProvider.OFFLINE -> "No internet — basic responses only"
 }
