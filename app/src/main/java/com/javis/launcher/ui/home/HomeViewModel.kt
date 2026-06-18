@@ -13,7 +13,7 @@ import com.javis.launcher.data.local.AppDao
 import com.javis.launcher.data.local.FavoriteContactDao
 import com.javis.launcher.data.local.NotificationCacheDao
 import com.javis.launcher.data.local.TaskDao
-import com.javis.launcher.data.local.InstalledAppEntity
+import com.javis.launcher.data.model.InstalledAppEntity
 import com.javis.launcher.data.model.*
 import com.javis.launcher.tasks.TaskPlanner
 import com.javis.launcher.voice.VoiceManager
