@@ -2,25 +2,28 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
-    alias(libs.plugins.hilt)
+    alias(libs.plugins.hilt.android)
     alias(libs.plugins.ksp)
 }
 
 android {
     namespace = "com.javis.launcher"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.javis.launcher"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0.0"
-
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        vectorDrawables {
-            useSupportLibrary = true
-        }
+        
+        buildConfigField("String", "OPENROUTER_BASE_URL", "\"https://openrouter.ai/api/v1/\"")
+        buildConfigField("String", "GROQ_BASE_URL", "\"https://api.groq.com/openai/v1/\"")
+        buildConfigField("String", "DEEPSEEK_BASE_URL", "\"https://api.deepseek.com/v1/\"")
+        buildConfigField("String", "TOGETHER_BASE_URL", "\"https://api.together.xyz/v1/\"")
+        buildConfigField("String", "FIREWORKS_BASE_URL", "\"https://api.fireworks.ai/inference/v1/\"")
+        buildConfigField("String", "ELEVENLABS_BASE_URL", "\"https://api.elevenlabs.io/v1/\"")
     }
 
     buildTypes {
@@ -33,25 +36,30 @@ android {
             )
         }
         debug {
-            applicationIdSuffix = ".debug"
             isDebuggable = true
+            applicationIdSuffix = ".debug"
         }
     }
-
+    
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
+    
     kotlinOptions {
         jvmTarget = "17"
+        freeCompilerArgs += listOf(
+            "-opt-in=androidx.compose.material3.ExperimentalMaterial3Api",
+            "-opt-in=androidx.compose.foundation.ExperimentalFoundationApi",
+            "-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi"
+        )
     }
-
+    
     buildFeatures {
         compose = true
         buildConfig = true
     }
-
+    
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -62,7 +70,6 @@ android {
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
-    implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.ui)
@@ -70,8 +77,9 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
     implementation(libs.androidx.material.icons)
+    implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.lifecycle.runtime.compose)
     implementation(libs.navigation.compose)
-    implementation(libs.splashscreen)
 
     // Hilt DI
     implementation(libs.hilt.android)
@@ -95,14 +103,11 @@ dependencies {
     // Coroutines
     implementation(libs.coroutines.android)
 
-    // Permissions
-    implementation(libs.accompanist.permissions)
+    // Gson
+    implementation(libs.gson)
 
     // Image loading
     implementation(libs.coil.compose)
-
-    // JSON
-    implementation(libs.gson)
 
     // WorkManager
     implementation(libs.work.runtime.ktx)
@@ -110,6 +115,7 @@ dependencies {
     // Lottie animations
     implementation(libs.lottie.compose)
 
+    // Testing
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

@@ -13,5 +13,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "JAVIS"
+rootProject.name = "JAVIS Launcher OS"
 include(":app")

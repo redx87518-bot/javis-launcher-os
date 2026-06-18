@@ -1,16 +1,31 @@
--keep class com.javis.launcher.data.db.entity.** { *; }
--keep class com.javis.launcher.ai.** { *; }
--keep class com.javis.launcher.data.preferences.** { *; }
+# JAVIS Launcher ProGuard Rules
+
+# Keep Hilt generated classes
+-keep class dagger.hilt.** { *; }
+-keep class javax.inject.** { *; }
+-keep @dagger.hilt.android.AndroidEntryPoint class * { *; }
+-keep @dagger.hilt.InstallIn class * { *; }
+
+# Keep Room entities
+-keep class com.javis.launcher.data.model.** { *; }
+-keep class com.javis.launcher.data.local.** { *; }
+
+# Keep Retrofit models
 -keepattributes Signature
 -keepattributes *Annotation*
--dontwarn okhttp3.**
--dontwarn retrofit2.**
 -keep class retrofit2.** { *; }
 -keep class okhttp3.** { *; }
 -keep class com.google.gson.** { *; }
 -keepclassmembers class * {
     @com.google.gson.annotations.SerializedName <fields>;
 }
--keep class * extends androidx.room.RoomDatabase
--keep @androidx.room.Entity class *
--keep @androidx.room.Dao interface *
+
+# Kotlin coroutines
+-keep class kotlinx.coroutines.** { *; }
+
+# Keep accessibility service
+-keep class com.javis.launcher.accessibility.** { *; }
+
+# Keep services and receivers
+-keep class com.javis.launcher.services.** { *; }
+-keep class com.javis.launcher.receivers.** { *; }
