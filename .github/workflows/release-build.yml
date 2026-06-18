@@ -1,0 +1,93 @@
+name: Android Release Build
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version_name:
+        description: 'Version name (e.g. 1.0.0)'
+        required: true
+        default: '1.0.0'
+
+jobs:
+  release:
+    name: Build Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Build Release APK (unsigned)
+        run: ./gradlew assembleRelease --stacktrace
+
+      - name: Sign APK
+        if: ${{ secrets.KEYSTORE_BASE64 != '' }}
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Upload Release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: JAVIS-release-apk-${{ github.run_number }}
+          path: app/build/outputs/apk/release/
+          retention-days: 90
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: app/build/outputs/apk/release/*.apk
+          name: JAVIS Launcher OS ${{ github.ref_name }}
+          body: |
+            ## JAVIS Launcher OS Release ${{ github.ref_name }}
+
+            ### What's included:
+            - AI Brain Manager with multi-provider fallback (OpenRouter → Groq → DeepSeek → Together → Fireworks → Offline)
+            - Futuristic AI Orb with animated states
+            - Voice input (Android SpeechRecognizer) + ElevenLabs TTS
+            - Memory system with persistent storage
+            - App launcher with category filtering
+            - Notification listener
+            - Contact search and calling
+            - Alarm/reminder creation
+            - JAVIS Dashboard / Mission Control
+            - Settings for all AI providers
+
+            ### Installation:
+            1. Download the APK
+            2. Enable "Unknown sources" on your Android device
+            3. Install the APK
+            4. Set JAVIS as your default launcher
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">JAVIS</string>
+    <string name="notification_listener_label">JAVIS Notification Access</string>
+    <string name="accessibility_service_label">JAVIS Accessibility Service</string>
+    <string name="accessibility_service_description">JAVIS uses Accessibility Service to detect current app context and assist with automation tasks.</string>
+    <string name="notification_channel_id">javis_service</string>
+    <string name="notification_channel_name">JAVIS Assistant</string>
+    <string name="notification_title">JAVIS is active</string>
+    <string name="notification_text">Your AI companion is ready</string>
+</resources>

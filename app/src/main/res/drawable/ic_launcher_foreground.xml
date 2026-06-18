@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Outer glow ring -->
+    <path
+        android:strokeColor="#3300B4FF"
+        android:strokeWidth="2"
+        android:fillColor="@android:color/transparent"
+        android:pathData="M54,10 A44,44 0 1,1 53.999,10" />
+    <!-- Main orb -->
+    <path
+        android:fillColor="#00B4FF"
+        android:fillAlpha="0.9"
+        android:pathData="M54,30 A24,24 0 1,1 53.999,30" />
+    <!-- Inner core -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:fillAlpha="0.6"
+        android:pathData="M54,42 A12,12 0 1,1 53.999,42" />
+    <!-- Ring decoration -->
+    <path
+        android:strokeColor="#00B4FF"
+        android:strokeWidth="1.5"
+        android:fillColor="@android:color/transparent"
+        android:strokeAlpha="0.5"
+        android:pathData="M54,20 A34,34 0 1,1 53.999,20" />
+</vector>
