@@ -9,7 +9,7 @@ on:
     inputs:
       build_type:
         description: 'Build Type'
-        required: true
+        required: false
         default: 'debug'
         type: choice
         options:
@@ -20,7 +20,6 @@ jobs:
   build-debug:
     name: Build Debug APK
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout Repository
@@ -31,7 +30,6 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -39,18 +37,24 @@ jobs:
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
-      - name: Cache Gradle Packages
+      - name: Cache Gradle Wrapper
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-wrapper-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
+
+      - name: Cache Gradle Dependencies
         uses: actions/cache@v4
         with:
           path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-9
+          key: ${{ runner.os }}-gradle-deps-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml') }}
           restore-keys: |
-            ${{ runner.os }}-gradle-
+            ${{ runner.os }}-gradle-deps-
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace --no-daemon
+        run: ./gradlew clean assembleDebug --stacktrace --no-daemon -Dkotlin.incremental=false
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
 
@@ -61,11 +65,18 @@ jobs:
           path: app/build/outputs/apk/debug/*.apk
           retention-days: 30
 
-      - name: Get APK Info
+      - name: APK Build Summary
         run: |
-          APK_PATH=$(find app/build/outputs/apk/debug -name "*.apk" | head -1)
-          echo "APK Size: $(du -h $APK_PATH | cut -f1)"
-          echo "APK Path: $APK_PATH"
+          APK_PATH=$(find app/build/outputs/apk/debug -name "*.apk" 2>/dev/null | head -1)
+          if [ -f "$APK_PATH" ]; then
+            SIZE=$(du -h "$APK_PATH" | cut -f1)
+            echo "✅ Debug APK built successfully!"
+            echo "📦 Size: $SIZE"
+            echo "📍 Path: $APK_PATH"
+          else
+            echo "❌ APK not found"
+            exit 1
+          fi
 
   build-release:
     name: Build Release APK
@@ -81,7 +92,6 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
@@ -89,27 +99,45 @@ jobs:
       - name: Grant Execute Permission for Gradlew
         run: chmod +x gradlew
 
-      - name: Cache Gradle Packages
+      - name: Cache Gradle Wrapper
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-wrapper-${{ hashFiles('gradle/wrapper/gradle-wrapper.properties') }}
+
+      - name: Cache Gradle Dependencies
         uses: actions/cache@v4
         with:
           path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+            ~/.gradle/caches/modules-2
+            ~/.gradle/caches/jars-9
+          key: ${{ runner.os }}-gradle-deps-${{ hashFiles('**/*.gradle.kts', 'gradle/libs.versions.toml') }}
           restore-keys: |
-            ${{ runner.os }}-gradle-
+            ${{ runner.os }}-gradle-deps-
 
       - name: Build Release APK (Unsigned)
-        run: ./gradlew assembleRelease --stacktrace --no-daemon
+        run: ./gradlew clean assembleRelease --stacktrace --no-daemon -Dkotlin.incremental=false
         env:
           ANDROID_HOME: ${{ env.ANDROID_HOME }}
 
       - name: Upload Release APK
         uses: actions/upload-artifact@v4
         with:
-          name: javis-launcher-release-${{ github.run_number }}
+          name: javis-launcher-release-unsigned-${{ github.run_number }}
           path: app/build/outputs/apk/release/*.apk
           retention-days: 90
+
+      - name: Release Build Summary
+        run: |
+          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" 2>/dev/null | head -1)
+          if [ -f "$APK_PATH" ]; then
+            SIZE=$(du -h "$APK_PATH" | cut -f1)
+            echo "✅ Release APK built successfully (unsigned)!"
+            echo "📦 Size: $SIZE"
+          else
+            echo "❌ Release APK not found"
+            exit 1
+          fi
 
   code-quality:
     name: Code Quality Check
@@ -129,13 +157,13 @@ jobs:
         run: chmod +x gradlew
 
       - name: Run Lint
-        run: ./gradlew lint --no-daemon
+        run: ./gradlew lint --no-daemon --stacktrace
         continue-on-error: true
 
       - name: Upload Lint Report
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: lint-report
+          name: lint-report-${{ github.run_number }}
           path: app/build/reports/lint-results*.html
           retention-days: 7
