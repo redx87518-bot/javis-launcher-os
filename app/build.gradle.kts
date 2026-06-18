@@ -17,7 +17,7 @@ android {
         versionCode = 1
         versionName = "1.0.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        
+
         buildConfigField("String", "OPENROUTER_BASE_URL", "\"https://openrouter.ai/api/v1/\"")
         buildConfigField("String", "GROQ_BASE_URL", "\"https://api.groq.com/openai/v1/\"")
         buildConfigField("String", "DEEPSEEK_BASE_URL", "\"https://api.deepseek.com/v1/\"")
@@ -37,15 +37,14 @@ android {
         }
         debug {
             isDebuggable = true
-            applicationIdSuffix = ".debug"
         }
     }
-    
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    
+
     kotlinOptions {
         jvmTarget = "17"
         freeCompilerArgs += listOf(
@@ -54,12 +53,12 @@ android {
             "-opt-in=kotlinx.coroutines.ExperimentalCoroutinesApi"
         )
     }
-    
+
     buildFeatures {
         compose = true
         buildConfig = true
     }
-    
+
     packaging {
         resources {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
@@ -69,6 +68,7 @@ android {
 
 dependencies {
     implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.appcompat)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.activity.compose)
     implementation(platform(libs.androidx.compose.bom))
@@ -111,9 +111,6 @@ dependencies {
 
     // WorkManager
     implementation(libs.work.runtime.ktx)
-
-    // Lottie animations
-    implementation(libs.lottie.compose)
 
     // Testing
     testImplementation(libs.junit)

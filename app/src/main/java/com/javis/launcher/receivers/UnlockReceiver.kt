@@ -3,19 +3,13 @@ package com.javis.launcher.receivers
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.content.SharedPreferences
-import dagger.hilt.android.AndroidEntryPoint
-import javax.inject.Inject
 
-@AndroidEntryPoint
 class UnlockReceiver : BroadcastReceiver() {
-
-    @Inject
-    lateinit var prefs: SharedPreferences
 
     override fun onReceive(context: Context, intent: Intent) {
         if (intent.action != Intent.ACTION_USER_PRESENT) return
 
+        val prefs = context.getSharedPreferences("javis_prefs", Context.MODE_PRIVATE)
         val dailyBriefingEnabled = prefs.getBoolean("daily_briefing_enabled", true)
         if (!dailyBriefingEnabled) return
 
@@ -38,7 +32,6 @@ class UnlockReceiver : BroadcastReceiver() {
                 .putString("last_briefing_date", today)
                 .putLong("last_briefing_time", System.currentTimeMillis())
                 .apply()
-            // Briefing is handled by MainActivity/HomeViewModel on next unlock
             val broadcastIntent = Intent("com.javis.launcher.DAILY_BRIEFING")
                 .setPackage("com.javis.launcher")
             context.sendBroadcast(broadcastIntent)
