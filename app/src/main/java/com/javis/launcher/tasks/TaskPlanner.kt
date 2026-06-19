@@ -361,7 +361,7 @@ class TaskPlanner @Inject constructor(
                 "sound", "volume" -> Settings.ACTION_SOUND_SETTINGS
                 "battery" -> Settings.ACTION_BATTERY_SAVER_SETTINGS
                 "accessibility" -> Settings.ACTION_ACCESSIBILITY_SETTINGS
-                "notification" -> Settings.ACTION_NOTIFICATION_SETTINGS
+                "notification" -> Settings.ACTION_APP_NOTIFICATION_SETTINGS
                 "location", "gps" -> Settings.ACTION_LOCATION_SOURCE_SETTINGS
                 else -> Settings.ACTION_SETTINGS
             }
