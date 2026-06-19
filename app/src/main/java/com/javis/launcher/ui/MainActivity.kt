@@ -10,7 +10,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.javis.launcher.services.JavisForegroundService
+import com.javis.launcher.ui.conversation.ConversationScreen
 import com.javis.launcher.ui.home.HomeScreen
+import com.javis.launcher.ui.memory.MemoryScreen
 import com.javis.launcher.ui.mission.MissionControlScreen
 import com.javis.launcher.ui.onboarding.OnboardingScreen
 import com.javis.launcher.ui.settings.SettingsScreen
@@ -48,6 +50,12 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("mission") {
                         MissionControlScreen(navController = navController)
+                    }
+                    composable("conversation") {
+                        ConversationScreen(navController = navController)
+                    }
+                    composable("memory") {
+                        MemoryScreen(navController = navController)
                     }
                 }
             }

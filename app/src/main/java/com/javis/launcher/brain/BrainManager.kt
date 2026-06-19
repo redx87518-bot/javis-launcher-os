@@ -26,7 +26,7 @@ class BrainManager @Inject constructor(
     private val memoryDao: MemoryDao,
     private val prefs: SharedPreferences
 ) {
-    private val _currentProvider = MutableStateFlow(AiProvider.OPENROUTER)
+    private val _currentProvider = MutableStateFlow(AiProvider.GROQ)
     val currentProvider: StateFlow<AiProvider> = _currentProvider.asStateFlow()
 
     private val _isThinking = MutableStateFlow(false)
@@ -35,8 +35,8 @@ class BrainManager @Inject constructor(
     private val conversationHistory = mutableListOf<ChatMessage>()
 
     private val providerPriority = listOf(
-        AiProvider.OPENROUTER,
         AiProvider.GROQ,
+        AiProvider.OPENROUTER,
         AiProvider.DEEPSEEK,
         AiProvider.TOGETHER,
         AiProvider.FIREWORKS
@@ -46,13 +46,12 @@ class BrainManager @Inject constructor(
         _isThinking.value = true
         conversationHistory.add(ChatMessage("user", userMessage))
 
-        // Save to DB
         conversationDao.insert(
             ConversationEntity(role = "user", content = userMessage, provider = _currentProvider.value.name)
         )
 
         val systemPrompt = buildSystemPrompt()
-        val messages = listOf(ChatMessage("system", systemPrompt)) + conversationHistory.takeLast(10)
+        val messages = listOf(ChatMessage("system", systemPrompt)) + conversationHistory.takeLast(12)
 
         val result = tryProvidersInOrder(messages)
         _isThinking.value = false
@@ -80,7 +79,6 @@ class BrainManager @Inject constructor(
             }
         }
 
-        // Fallback offline response
         return Result.success(getOfflineResponse(messages.lastOrNull { it.role == "user" }?.content ?: ""))
     }
 
@@ -91,14 +89,14 @@ class BrainManager @Inject constructor(
     ): Result<String> = try {
         val service = getService(provider)
         val model = getModel(provider)
-        val request = ChatRequest(model = model, messages = messages, max_tokens = 1024)
+        val request = ChatRequest(model = model, messages = messages, max_tokens = 512, temperature = 0.75f)
         val response = service.chatCompletion(
             authorization = "Bearer $apiKey",
             request = request
         )
         if (response.isSuccessful) {
             val content = response.body()?.choices?.firstOrNull()?.message?.content
-            if (!content.isNullOrBlank()) Result.success(content)
+            if (!content.isNullOrBlank()) Result.success(content.trim())
             else Result.failure(Exception("Empty response"))
         } else {
             Result.failure(Exception("HTTP ${response.code()}: ${response.message()}"))
@@ -108,40 +106,123 @@ class BrainManager @Inject constructor(
     }
 
     private fun buildSystemPrompt(): String {
-        val nickname = prefs.getString("user_nickname", "Sir") ?: "Sir"
+        val nickname = prefs.getString("user_nickname", "boss") ?: "boss"
         val userName = prefs.getString("user_name", "") ?: ""
-        val personalityMode = prefs.getString("personality_mode", "JARVIS") ?: "JARVIS"
-        val memories = "" // Could load top memories from DB here
+        val personalityMode = prefs.getString("personality_mode", "JAVIS") ?: "JAVIS"
 
-        return """You are JAVIS, an advanced AI assistant and Android launcher. You are intelligent, professional, friendly, and occasionally humorous.
-You address the user as "$nickname"${if (userName.isNotBlank()) " (their name is $userName)" else ""}.
+        return """You are JAVIS — a brilliant, loyal AI assistant built into an Android launcher. You're sharp, efficient, and occasionally witty like Tony Stark's J.A.R.V.I.S.
 
-Personality mode: $personalityMode
+User's name: ${if (userName.isNotBlank()) userName else "unknown"}
+Address them as: "$nickname"
+Personality: $personalityMode
 
-Key behaviors:
-- Be concise but complete in responses
-- For device actions (opening apps, calling contacts, setting alarms), respond with a JSON action block followed by a confirmation message
-- Format: {"action":"OPEN_APP","params":{"package":"com.example.app"}} 
-- Available actions: OPEN_APP, CALL_CONTACT, SEND_SMS, SET_ALARM, SET_REMINDER, SEARCH_WEB, SEARCH_CONTACTS
-- Always confirm before sending messages: "I've prepared the message: [msg]. Shall I send it?"
-- Reference context and memory when appropriate
-- Keep responses under 150 words unless the user asks for detail
+## CRITICAL RULES FOR DEVICE ACTIONS:
 
-$memories""".trimIndent()
+When the user asks you to perform a device action, you MUST output a valid JSON action block.
+The JSON block MUST come FIRST, on its own line, before your spoken response.
+
+### JSON Format:
+{"action":"ACTION_NAME","params":{...}}
+
+### Available Actions & JSON formats:
+
+OPEN APP:
+{"action":"OPEN_APP","params":{"package":"com.whatsapp","name":"WhatsApp"}}
+
+CALL SOMEONE:
+{"action":"CALL_CONTACT","params":{"phone":"+1234567890","name":"John"}}
+
+SET ALARM:
+{"action":"SET_ALARM","params":{"time":"HH:MM","message":"label","repeat":false}}
+Example for 8pm: {"action":"SET_ALARM","params":{"time":"20:00","message":"JAVIS Alarm","repeat":false}}
+Example for 7:30am: {"action":"SET_ALARM","params":{"time":"07:30","message":"Morning alarm","repeat":false}}
+
+SET TIMER:
+{"action":"SET_TIMER","params":{"seconds":300}}
+
+SEARCH WEB:
+{"action":"SEARCH_WEB","params":{"query":"search term"}}
+
+SEND SMS:
+{"action":"SEND_SMS","params":{"phone":"number","message":"text"}}
+
+WHATSAPP:
+{"action":"OPEN_WHATSAPP","params":{"phone":"number","message":"text"}}
+To just open WhatsApp: {"action":"OPEN_WHATSAPP","params":{}}
+
+OPEN SETTINGS:
+{"action":"OPEN_SETTINGS","params":{"page":"wifi"}}
+Pages: wifi, bluetooth, display, sound, battery, location, notification
+
+PLAY MUSIC:
+{"action":"PLAY_MUSIC","params":{"query":"artist or song name"}}
+
+### Common app package names:
+- WhatsApp: com.whatsapp
+- Instagram: com.instagram.android
+- TikTok: com.zhiliaoapp.musically
+- YouTube: com.google.android.youtube
+- Chrome: com.android.chrome
+- Camera: com.android.camera (or com.google.android.GoogleCamera)
+- Gallery: com.android.gallery3d (or com.google.android.apps.photos)
+- Maps: com.google.android.apps.maps
+- Gmail: com.google.android.gm
+- Calculator: com.android.calculator2
+- Spotify: com.spotify.music
+- Twitter/X: com.twitter.android
+- Facebook: com.facebook.katana
+- Snapchat: com.snapchat.android
+- Netflix: com.netflix.mediaclient
+- Telegram: org.telegram.messenger
+
+## RESPONSE RULES:
+- Put the JSON block on the FIRST line, then your spoken reply on the next line
+- Your spoken reply should be SHORT (under 2 sentences) — you will be speaking it aloud
+- NEVER show the JSON in your spoken reply
+- NEVER say "I'll prepare" or "shall I send" — just DO it and confirm briefly
+- If no action needed, just respond naturally and concisely
+- Always address user as "$nickname"
+- Be confident, capable, and occasionally witty
+
+Example:
+User: "Open WhatsApp"
+You respond:
+{"action":"OPEN_APP","params":{"package":"com.whatsapp","name":"WhatsApp"}}
+Opening WhatsApp for you, $nickname.
+
+Example:
+User: "Set alarm for 8pm"
+You respond:
+{"action":"SET_ALARM","params":{"time":"20:00","message":"JAVIS Alarm","repeat":false}}
+Alarm set for 8 PM, $nickname. Don't say I never do anything for you.""".trimIndent()
     }
 
     private fun getOfflineResponse(input: String): String {
         val lower = input.lowercase()
+        val nickname = prefs.getString("user_nickname", "boss") ?: "boss"
         return when {
-            lower.contains("hello") || lower.contains("hi") ->
-                "Hello, Sir. I'm currently operating in offline mode. Basic commands are available."
+            lower.contains("hello") || lower.contains("hi") || lower.contains("hey") ->
+                "Hello, $nickname. Operating in offline mode — I can still handle basic tasks."
             lower.contains("time") ->
-                "It's ${java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date())}."
-            lower.contains("open") ->
-                """{"action":"OPEN_APP","params":{"query":"${lower.replace("open","").trim()}"}} Opening the app for you, Sir."""
-            lower.contains("call") ->
-                """{"action":"SEARCH_CONTACTS","params":{"query":"${lower.replace("call","").trim()}"}} Searching contacts, Sir."""
-            else -> "I'm in offline mode, Sir. I can still open apps, search contacts, and handle basic tasks."
+                "It's ${java.text.SimpleDateFormat("h:mm a", java.util.Locale.getDefault()).format(java.util.Date())}, $nickname."
+            lower.contains("open") || lower.contains("launch") -> {
+                val app = lower.replace(Regex("open|launch|start|the|app|please"), "").trim()
+                """{"action":"OPEN_APP","params":{"name":"$app"}}
+On it, $nickname."""
+            }
+            lower.contains("whatsapp") ->
+                """{"action":"OPEN_APP","params":{"package":"com.whatsapp"}}
+Opening WhatsApp, $nickname."""
+            lower.contains("call") -> {
+                val name = lower.replace(Regex("call|please|now"), "").trim()
+                """{"action":"CALL_CONTACT","params":{"name":"$name"}}
+Initiating call, $nickname."""
+            }
+            lower.contains("alarm") || lower.contains("wake") ->
+                """{"action":"SET_ALARM","params":{"time":"07:00","message":"JAVIS Alarm","repeat":false}}
+Alarm set, $nickname."""
+            else ->
+                "I'm in offline mode, $nickname. I can still open apps, call contacts, set alarms, and search the web."
         }
     }
 
@@ -151,7 +232,7 @@ $memories""".trimIndent()
         AiProvider.DEEPSEEK -> deepSeekService
         AiProvider.TOGETHER -> togetherService
         AiProvider.FIREWORKS -> fireworksService
-        AiProvider.OFFLINE -> openRouterService
+        AiProvider.OFFLINE -> groqService
     }
 
     private fun getApiKey(provider: AiProvider): String = when (provider) {
@@ -164,11 +245,16 @@ $memories""".trimIndent()
     }
 
     private fun getModel(provider: AiProvider): String = when (provider) {
-        AiProvider.OPENROUTER -> prefs.getString("openrouter_model", "meta-llama/llama-3.1-8b-instruct:free") ?: "meta-llama/llama-3.1-8b-instruct:free"
-        AiProvider.GROQ -> prefs.getString("groq_model", "llama-3.1-8b-instant") ?: "llama-3.1-8b-instant"
-        AiProvider.DEEPSEEK -> prefs.getString("deepseek_model", "deepseek-chat") ?: "deepseek-chat"
-        AiProvider.TOGETHER -> prefs.getString("together_model", "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo") ?: "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo"
-        AiProvider.FIREWORKS -> prefs.getString("fireworks_model", "accounts/fireworks/models/llama-v3p1-8b-instruct") ?: "accounts/fireworks/models/llama-v3p1-8b-instruct"
+        AiProvider.OPENROUTER -> prefs.getString("openrouter_model", "meta-llama/llama-3.3-70b-instruct:free")
+            ?: "meta-llama/llama-3.3-70b-instruct:free"
+        AiProvider.GROQ -> prefs.getString("groq_model", "llama-3.1-70b-versatile")
+            ?: "llama-3.1-70b-versatile"
+        AiProvider.DEEPSEEK -> prefs.getString("deepseek_model", "deepseek-chat")
+            ?: "deepseek-chat"
+        AiProvider.TOGETHER -> prefs.getString("together_model", "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo")
+            ?: "meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo"
+        AiProvider.FIREWORKS -> prefs.getString("fireworks_model", "accounts/fireworks/models/llama-v3p1-70b-instruct")
+            ?: "accounts/fireworks/models/llama-v3p1-70b-instruct"
         AiProvider.OFFLINE -> ""
     }
 
@@ -179,9 +265,14 @@ $memories""".trimIndent()
         conversationHistory.clear()
     }
 
+    fun getConversationHistory(): List<ChatMessage> = conversationHistory.toList()
+
     suspend fun testProvider(provider: AiProvider): Result<String> {
         val apiKey = getApiKey(provider)
-        if (apiKey.isBlank()) return Result.failure(Exception("No API key configured"))
-        return callProvider(provider, apiKey, listOf(ChatMessage("user", "Say 'JAVIS online' in one sentence.")))
+        if (apiKey.isBlank()) return Result.failure(Exception("No API key configured for ${provider.name}"))
+        return callProvider(
+            provider, apiKey,
+            listOf(ChatMessage("user", "Say exactly: JAVIS online and operational."))
+        )
     }
 }

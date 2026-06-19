@@ -264,7 +264,7 @@ fun ElevenLabsCard(viewModel: SettingsViewModel) {
         Spacer(Modifier.height(12.dp))
         JavisTextField(value = apiKey, onValueChange = { apiKey = it; viewModel.setElevenLabsKey(it) }, label = "ElevenLabs API Key", isPassword = true)
         Spacer(Modifier.height(8.dp))
-        JavisTextField(value = voiceId, onValueChange = { voiceId = it; viewModel.setVoiceId(it) }, label = "Voice ID (default: pNInz6obpgDQGcFmaJgB — Adam)")
+        JavisTextField(value = voiceId, onValueChange = { voiceId = it; viewModel.setVoiceId(it) }, label = "Voice ID (enter your ElevenLabs voice ID)")
         Spacer(Modifier.height(12.dp))
         Text("Voice Speed: ${String.format("%.1f", speed)}x", style = MaterialTheme.typography.bodySmall.copy(color = JavisTextSecondary))
         Slider(

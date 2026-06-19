@@ -54,6 +54,7 @@ fun HomeScreen(
     val searchResults by viewModel.searchResults.collectAsState()
     val isSpeaking by viewModel.isSpeaking.collectAsState()
     val currentTask by viewModel.currentTask.collectAsState()
+    val unreadNotifications by viewModel.unreadNotifications.collectAsState()
 
     var hasMicPermission by remember {
         mutableStateOf(
@@ -206,6 +207,53 @@ fun HomeScreen(
                                 text = currentTask,
                                 style = MaterialTheme.typography.bodySmall.copy(color = JavisGold),
                                 textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Text input for JAVIS
+            item {
+                JavisTextInput(
+                    onSubmit = { viewModel.onTextInput(it) },
+                    isProcessing = coreState == CoreState.THINKING || coreState == CoreState.SPEAKING
+                )
+            }
+
+            // Quick nav: Chat | Memory | Notifications
+            item {
+                JavisNavRow(
+                    unreadCount = unreadCount,
+                    onChatTap = { navController.navigate("conversation") },
+                    onMemoryTap = { navController.navigate("memory") },
+                    onNotifTap = { navController.navigate("conversation") }
+                )
+            }
+
+            // Unread notifications panel
+            if (unreadNotifications.isNotEmpty()) {
+                item {
+                    SectionHeader(title = "NOTIFICATIONS")
+                    Spacer(Modifier.height(8.dp))
+                }
+                items(unreadNotifications.take(3)) { notif ->
+                    NotificationItem(
+                        appName = notif.appName,
+                        title = notif.title,
+                        text = notif.text,
+                        onTap = { viewModel.markNotificationRead(notif.id) }
+                    )
+                }
+                if (unreadNotifications.size > 3) {
+                    item {
+                        TextButton(
+                            onClick = { viewModel.markAllNotificationsRead() },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                "Mark all ${unreadNotifications.size} read",
+                                style = MaterialTheme.typography.labelSmall.copy(color = JavisTextDim)
                             )
                         }
                     }
@@ -648,5 +696,155 @@ fun QuickActionsRow(
                 Text(label, style = MaterialTheme.typography.labelSmall.copy(color = JavisTextDim))
             }
         }
+    }
+}
+
+@Composable
+fun JavisTextInput(onSubmit: (String) -> Unit, isProcessing: Boolean) {
+    var text by remember { mutableStateOf("") }
+    val keyboard = androidx.compose.ui.platform.LocalSoftwareKeyboardController.current
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(JavisBgCard, RoundedCornerShape(24.dp))
+            .border(1.dp, JavisRed.copy(0.4f), RoundedCornerShape(24.dp))
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(Icons.Default.ChatBubbleOutline, contentDescription = null, tint = JavisRed.copy(0.7f), modifier = Modifier.size(18.dp))
+        Spacer(Modifier.width(10.dp))
+        androidx.compose.foundation.text.BasicTextField(
+            value = text,
+            onValueChange = { text = it },
+            modifier = Modifier.weight(1f),
+            textStyle = MaterialTheme.typography.bodyMedium.copy(color = JavisTextPrimary),
+            decorationBox = { inner ->
+                if (text.isEmpty()) Text("Type a command or question...", style = MaterialTheme.typography.bodyMedium.copy(color = JavisTextDim))
+                inner()
+            },
+            singleLine = true,
+            keyboardActions = androidx.compose.foundation.text.KeyboardActions(
+                onDone = {
+                    if (text.isNotBlank()) {
+                        onSubmit(text.trim())
+                        text = ""
+                        keyboard?.hide()
+                    }
+                }
+            ),
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(imeAction = androidx.compose.ui.text.input.ImeAction.Done)
+        )
+        Spacer(Modifier.width(8.dp))
+        if (isProcessing) {
+            CircularProgressIndicator(color = JavisRed, modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+        } else {
+            Icon(
+                Icons.Default.Send,
+                contentDescription = "Send",
+                tint = if (text.isNotBlank()) JavisRed else JavisTextDim,
+                modifier = Modifier
+                    .size(18.dp)
+                    .clickable {
+                        if (text.isNotBlank()) {
+                            onSubmit(text.trim())
+                            text = ""
+                            keyboard?.hide()
+                        }
+                    }
+            )
+        }
+    }
+}
+
+@Composable
+fun JavisNavRow(unreadCount: Int, onChatTap: () -> Unit, onMemoryTap: () -> Unit, onNotifTap: () -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        // Chat History
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .background(JavisBgCard, RoundedCornerShape(12.dp))
+                .border(1.dp, JavisGlassBorder, RoundedCornerShape(12.dp))
+                .clickable { onChatTap() }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Chat, contentDescription = null, tint = JavisRed, modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("CHAT", style = MaterialTheme.typography.labelSmall.copy(color = JavisTextDim, letterSpacing = 1.sp))
+        }
+        // Memory
+        Row(
+            modifier = Modifier
+                .weight(1f)
+                .background(JavisBgCard, RoundedCornerShape(12.dp))
+                .border(1.dp, JavisGlassBorder, RoundedCornerShape(12.dp))
+                .clickable { onMemoryTap() }
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(Icons.Default.Psychology, contentDescription = null, tint = Color(0xFF00D2FF), modifier = Modifier.size(16.dp))
+            Spacer(Modifier.width(6.dp))
+            Text("MEMORY", style = MaterialTheme.typography.labelSmall.copy(color = JavisTextDim, letterSpacing = 1.sp))
+        }
+        // Notifications
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .background(JavisBgCard, RoundedCornerShape(12.dp))
+                .border(
+                    1.dp,
+                    if (unreadCount > 0) JavisRed.copy(0.5f) else JavisGlassBorder,
+                    RoundedCornerShape(12.dp)
+                )
+                .clickable { onNotifTap() }
+                .padding(horizontal = 12.dp, vertical = 10.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Default.Notifications, contentDescription = null, tint = if (unreadCount > 0) JavisRed else JavisTextDim, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    if (unreadCount > 0) "$unreadCount" else "NOTIF",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                        color = if (unreadCount > 0) JavisRed else JavisTextDim,
+                        letterSpacing = 1.sp
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun NotificationItem(appName: String, title: String, text: String, onTap: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(JavisBgCard, RoundedCornerShape(10.dp))
+            .border(1.dp, JavisGlassBorder, RoundedCornerShape(10.dp))
+            .clickable { onTap() }
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(6.dp)
+                .background(JavisRed, CircleShape)
+        )
+        Spacer(Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(appName, style = MaterialTheme.typography.labelSmall.copy(color = JavisRed, letterSpacing = 1.sp))
+            if (title.isNotBlank()) {
+                Text(title, style = MaterialTheme.typography.bodySmall.copy(color = JavisTextPrimary), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            if (text.isNotBlank()) {
+                Text(text, style = MaterialTheme.typography.bodySmall.copy(color = JavisTextDim), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Icon(Icons.Default.Close, contentDescription = "Dismiss", tint = JavisTextDim, modifier = Modifier.size(14.dp))
     }
 }

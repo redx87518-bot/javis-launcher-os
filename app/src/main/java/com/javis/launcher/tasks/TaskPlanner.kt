@@ -4,7 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.provider.AlarmClock
-import android.provider.ContactsContract
+import android.provider.Settings
 import com.javis.launcher.data.local.AppDao
 import com.javis.launcher.data.local.TaskDao
 import com.javis.launcher.data.model.*
@@ -34,124 +34,399 @@ class TaskPlanner @Inject constructor(
         _taskStatus.value = CoreState.THINKING
 
         val response = brainManager.chat(input)
-        val responseText = response.getOrNull() ?: "I'm sorry, I encountered an issue. Please try again."
+        val responseText = response.getOrNull()
+            ?: "I'm having trouble connecting right now. Please try again."
 
-        // Parse and execute any actions embedded in the response
-        val actionResult = extractAndExecuteAction(responseText)
+        val cleanText = executeActionsAndClean(responseText)
 
-        _taskStatus.value = if (actionResult != null) CoreState.EXECUTING else CoreState.IDLE
-
-        return if (actionResult != null) {
-            val cleanResponse = removeJsonBlock(responseText)
-            cleanResponse.ifBlank { actionResult }
-        } else {
-            responseText
-        }
+        _taskStatus.value = CoreState.IDLE
+        return cleanText
     }
 
-    private suspend fun extractAndExecuteAction(text: String): String? {
-        val jsonPattern = Regex("""\{[^}]+\}""")
-        val jsonMatch = jsonPattern.find(text) ?: return null
+    // ── JSON extraction that handles nested braces ────────────────────────────
 
-        return try {
-            val json = JSONObject(jsonMatch.value)
-            val action = json.optString("action")
-            val params = json.optJSONObject("params")
-
-            when (action) {
-                "OPEN_APP" -> {
-                    val query = params?.optString("query") ?: params?.optString("package") ?: ""
-                    openApp(query)
+    private fun extractFirstJson(text: String): String? {
+        var depth = 0
+        var startIdx = -1
+        for (i in text.indices) {
+            when (text[i]) {
+                '{' -> {
+                    if (depth == 0) startIdx = i
+                    depth++
                 }
-                "CALL_CONTACT" -> {
-                    val name = params?.optString("name") ?: ""
-                    callContact(name)
+                '}' -> {
+                    depth--
+                    if (depth == 0 && startIdx != -1) {
+                        return text.substring(startIdx, i + 1)
+                    }
                 }
-                "SET_ALARM" -> {
-                    val hour = params?.optInt("hour") ?: 7
-                    val minute = params?.optInt("minute") ?: 0
-                    val message = params?.optString("message") ?: "JAVIS Alarm"
-                    setAlarm(hour, minute, message)
-                }
-                "SEARCH_WEB" -> {
-                    val query = params?.optString("query") ?: ""
-                    searchWeb(query)
-                }
-                "SEARCH_CONTACTS" -> {
-                    val query = params?.optString("query") ?: ""
-                    "Searching contacts for: $query"
-                }
-                else -> null
             }
-        } catch (e: Exception) {
-            null
         }
+        return null
     }
 
-    private suspend fun openApp(query: String): String {
-        _currentTask.value = "Opening $query"
-        val apps = appDao.searchApps(query)
-        val app = apps.firstOrNull()
-        if (app != null) {
-            try {
-                val intent = context.packageManager.getLaunchIntentForPackage(app.packageName)
-                intent?.let {
-                    it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    context.startActivity(it)
-                    appDao.incrementLaunch(app.packageName)
-                    _taskStatus.value = CoreState.COMPLETED
-                    return "Opening ${app.appName}, Sir."
+    private fun removeAllJsonBlocks(text: String): String {
+        val sb = StringBuilder()
+        var depth = 0
+        var inJson = false
+        for (ch in text) {
+            when {
+                ch == '{' -> { inJson = true; depth++ }
+                ch == '}' && inJson -> {
+                    depth--
+                    if (depth == 0) inJson = false
                 }
-            } catch (e: Exception) { /* fall through */ }
+                !inJson -> sb.append(ch)
+            }
         }
-        return "I couldn't find that app, Sir."
+        return sb.toString().trim().replace(Regex("\\s{2,}"), " ")
     }
 
-    private fun callContact(name: String): String {
+    private fun executeActionsAndClean(text: String): String {
+        var remaining = text
+        var executed = false
+
+        // Execute ALL action blocks found in the response
+        while (true) {
+            val jsonStr = extractFirstJson(remaining) ?: break
+            try {
+                val json = JSONObject(jsonStr)
+                val action = json.optString("action", "")
+                if (action.isBlank()) break
+                val params = json.optJSONObject("params")
+                executeAction(action, params)
+                executed = true
+                _taskStatus.value = CoreState.EXECUTING
+            } catch (_: Exception) {}
+            // Remove this JSON block and search for next
+            val idx = remaining.indexOf(jsonStr)
+            if (idx < 0) break
+            remaining = remaining.removeRange(idx, idx + jsonStr.length)
+        }
+
+        return removeAllJsonBlocks(text).ifBlank {
+            if (executed) "Done." else text
+        }
+    }
+
+    private fun executeAction(action: String, params: JSONObject?) {
+        when (action.uppercase()) {
+            "OPEN_APP" -> {
+                val pkg = params?.optString("package") ?: ""
+                val query = params?.optString("query")
+                    ?: params?.optString("name")
+                    ?: params?.optString("app")
+                    ?: ""
+                launchApp(packageName = pkg, query = query)
+            }
+            "CALL_CONTACT", "CALL" -> {
+                val phone = params?.optString("phone")
+                    ?: params?.optString("number")
+                    ?: params?.optString("phoneNumber")
+                    ?: ""
+                val name = params?.optString("name") ?: params?.optString("contact") ?: ""
+                callNumber(phone = phone, name = name)
+            }
+            "SET_ALARM", "ALARM" -> {
+                val (hour, minute) = parseTime(params)
+                val message = params?.optString("message")
+                    ?: params?.optString("label")
+                    ?: "JAVIS Alarm"
+                val repeat = params?.optBoolean("repeat") ?: false
+                setAlarm(hour, minute, message, repeat)
+            }
+            "SET_TIMER", "TIMER" -> {
+                val seconds = (params?.optInt("seconds") ?: 0)
+                    + (params?.optInt("minutes") ?: 0) * 60
+                    + (params?.optInt("hours") ?: 0) * 3600
+                setTimer(seconds.coerceAtLeast(60))
+            }
+            "SEARCH_WEB", "WEB_SEARCH", "GOOGLE" -> {
+                val query = params?.optString("query") ?: ""
+                searchWeb(query)
+            }
+            "SEND_SMS", "SMS" -> {
+                val phone = params?.optString("phone") ?: params?.optString("number") ?: ""
+                val message = params?.optString("message") ?: params?.optString("text") ?: ""
+                sendSms(phone, message)
+            }
+            "OPEN_WHATSAPP", "WHATSAPP" -> {
+                val phone = params?.optString("phone") ?: params?.optString("number") ?: ""
+                val message = params?.optString("message") ?: params?.optString("text") ?: ""
+                openWhatsApp(phone, message)
+            }
+            "OPEN_SETTINGS", "SETTINGS" -> {
+                openSettings(params?.optString("page") ?: "")
+            }
+            "PLAY_MUSIC", "MUSIC" -> {
+                val query = params?.optString("query") ?: params?.optString("song") ?: ""
+                playMusic(query)
+            }
+            "SET_REMINDER", "REMINDER" -> {
+                val (hour, minute) = parseTime(params)
+                val message = params?.optString("message") ?: params?.optString("text") ?: "Reminder"
+                setAlarm(hour, minute, message, false)
+            }
+            else -> {
+                // Try generic app launch by action name as query
+                val query = params?.optString("query")
+                    ?: params?.optString("app")
+                    ?: action.lowercase().replace("_", " ")
+                launchApp(packageName = "", query = query)
+            }
+        }
+    }
+
+    // ── Action implementations ────────────────────────────────────────────────
+
+    private fun launchApp(packageName: String, query: String) {
+        _currentTask.value = "Opening app..."
+        val pm = context.packageManager
+
+        // 1. Try exact package name first (most reliable)
+        if (packageName.isNotBlank() && packageName.contains(".")) {
+            try {
+                val intent = pm.getLaunchIntentForPackage(packageName)
+                if (intent != null) {
+                    intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    context.startActivity(intent)
+                    _taskStatus.value = CoreState.COMPLETED
+                    return
+                }
+            } catch (_: Exception) {}
+        }
+
+        // 2. Search installed apps by query (name match)
+        if (query.isNotBlank()) {
+            try {
+                val mainIntent = Intent(Intent.ACTION_MAIN, null).apply {
+                    addCategory(Intent.CATEGORY_LAUNCHER)
+                }
+                val allApps = pm.queryIntentActivities(mainIntent, 0)
+                val queryLower = query.lowercase().trim()
+
+                // Exact name match first
+                val exact = allApps.firstOrNull { ri ->
+                    pm.getApplicationLabel(ri.activityInfo.applicationInfo)
+                        .toString().lowercase() == queryLower
+                }
+                // Then partial match
+                val partial = allApps.firstOrNull { ri ->
+                    pm.getApplicationLabel(ri.activityInfo.applicationInfo)
+                        .toString().lowercase().contains(queryLower)
+                }
+
+                val match = exact ?: partial
+                if (match != null) {
+                    val pkg = match.activityInfo.packageName
+                    val intent = pm.getLaunchIntentForPackage(pkg)
+                    if (intent != null) {
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                        _taskStatus.value = CoreState.COMPLETED
+                        return
+                    }
+                }
+            } catch (_: Exception) {}
+        }
+
+        // 3. Try DB search
+        _taskStatus.value = CoreState.COMPLETED
+    }
+
+    private fun callNumber(phone: String, name: String) {
         _currentTask.value = "Calling $name"
-        val intent = Intent(Intent.ACTION_CALL).apply {
-            data = Uri.parse("tel:") 
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            if (phone.isNotBlank()) {
+                val intent = Intent(Intent.ACTION_CALL).apply {
+                    data = Uri.parse("tel:${phone.replace(" ", "")}")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+            } else if (name.isNotBlank()) {
+                // Open dialer with contact search
+                val intent = Intent(Intent.ACTION_DIAL).apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+            }
+            _taskStatus.value = CoreState.COMPLETED
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-        return "Searching for $name to call, Sir."
     }
 
-    private fun setAlarm(hour: Int, minute: Int, message: String): String {
-        _currentTask.value = "Setting alarm for $hour:$minute"
+    private fun setAlarm(hour: Int, minute: Int, message: String, repeat: Boolean) {
+        _currentTask.value = "Setting alarm ${formatTime(hour, minute)}"
         try {
             val intent = Intent(AlarmClock.ACTION_SET_ALARM).apply {
                 putExtra(AlarmClock.EXTRA_HOUR, hour)
                 putExtra(AlarmClock.EXTRA_MINUTES, minute)
                 putExtra(AlarmClock.EXTRA_MESSAGE, message)
                 putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+                if (repeat) {
+                    putExtra(AlarmClock.EXTRA_DAYS, arrayListOf(2, 3, 4, 5, 6, 7, 1))
+                }
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             }
             context.startActivity(intent)
             _taskStatus.value = CoreState.COMPLETED
-            return "Alarm set for ${formatTime(hour, minute)}, Sir."
         } catch (e: Exception) {
-            return "I couldn't set the alarm. Please check alarm permissions, Sir."
+            e.printStackTrace()
         }
     }
 
-    private fun searchWeb(query: String): String {
+    private fun setTimer(seconds: Int) {
+        _currentTask.value = "Setting timer"
+        try {
+            val intent = Intent(AlarmClock.ACTION_SET_TIMER).apply {
+                putExtra(AlarmClock.EXTRA_LENGTH, seconds)
+                putExtra(AlarmClock.EXTRA_SKIP_UI, true)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            _taskStatus.value = CoreState.COMPLETED
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun searchWeb(query: String) {
         _currentTask.value = "Searching: $query"
-        val intent = Intent(Intent.ACTION_VIEW).apply {
-            data = Uri.parse("https://www.google.com/search?q=${Uri.encode(query)}")
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        try {
+            val intent = Intent(Intent.ACTION_VIEW).apply {
+                data = Uri.parse("https://www.google.com/search?q=${Uri.encode(query)}")
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            _taskStatus.value = CoreState.COMPLETED
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
-        context.startActivity(intent)
-        return "Searching the web for: $query, Sir."
     }
 
-    private fun removeJsonBlock(text: String): String =
-        text.replace(Regex("""\{[^}]+\}\s*"""), "").trim()
+    private fun sendSms(phone: String, message: String) {
+        _currentTask.value = "Sending SMS"
+        try {
+            val intent = Intent(Intent.ACTION_SENDTO).apply {
+                data = Uri.parse("smsto:$phone")
+                putExtra("sms_body", message)
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            _taskStatus.value = CoreState.COMPLETED
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun openWhatsApp(phone: String, message: String) {
+        _currentTask.value = "Opening WhatsApp"
+        try {
+            if (phone.isNotBlank()) {
+                val cleanPhone = phone.replace(Regex("[^0-9+]"), "")
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    data = Uri.parse("https://wa.me/$cleanPhone?text=${Uri.encode(message)}")
+                    setPackage("com.whatsapp")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+            } else {
+                // Just open WhatsApp
+                val intent = context.packageManager.getLaunchIntentForPackage("com.whatsapp")
+                    ?: context.packageManager.getLaunchIntentForPackage("com.whatsapp.w4b")
+                intent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                if (intent != null) context.startActivity(intent)
+            }
+            _taskStatus.value = CoreState.COMPLETED
+        } catch (e: Exception) {
+            // Fallback: open WhatsApp from Play Store
+            try {
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    data = Uri.parse("market://details?id=com.whatsapp")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+            } catch (_: Exception) {}
+        }
+    }
+
+    private fun openSettings(page: String) {
+        _currentTask.value = "Opening settings"
+        try {
+            val action = when (page.lowercase()) {
+                "wifi", "network" -> Settings.ACTION_WIFI_SETTINGS
+                "bluetooth" -> Settings.ACTION_BLUETOOTH_SETTINGS
+                "display", "brightness" -> Settings.ACTION_DISPLAY_SETTINGS
+                "sound", "volume" -> Settings.ACTION_SOUND_SETTINGS
+                "battery" -> Settings.ACTION_BATTERY_SAVER_SETTINGS
+                "accessibility" -> Settings.ACTION_ACCESSIBILITY_SETTINGS
+                "notification" -> Settings.ACTION_NOTIFICATION_SETTINGS
+                "location", "gps" -> Settings.ACTION_LOCATION_SOURCE_SETTINGS
+                else -> Settings.ACTION_SETTINGS
+            }
+            val intent = Intent(action).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            context.startActivity(intent)
+            _taskStatus.value = CoreState.COMPLETED
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    private fun playMusic(query: String) {
+        _currentTask.value = "Playing music"
+        try {
+            if (query.isNotBlank()) {
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    data = Uri.parse("https://open.spotify.com/search/$query")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+                context.startActivity(intent)
+            } else {
+                // Try to open music app
+                for (pkg in listOf("com.spotify.music", "com.google.android.music",
+                    "com.apple.android.music", "com.soundcloud.android")) {
+                    val intent = context.packageManager.getLaunchIntentForPackage(pkg)
+                    if (intent != null) {
+                        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        context.startActivity(intent)
+                        break
+                    }
+                }
+            }
+            _taskStatus.value = CoreState.COMPLETED
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+    }
+
+    // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private fun parseTime(params: JSONObject?): Pair<Int, Int> {
+        // Handle "time":"20:00" format from AI
+        val timeStr = params?.optString("time") ?: ""
+        if (timeStr.contains(":")) {
+            val parts = timeStr.split(":")
+            val h = parts[0].trim().toIntOrNull() ?: 7
+            val m = parts.getOrNull(1)?.trim()?.take(2)?.toIntOrNull() ?: 0
+            return Pair(h, m)
+        }
+        // Handle "hour":20 "minute":0 format
+        val hour = params?.optInt("hour") ?: 7
+        val minute = params?.optInt("minute") ?: 0
+        return Pair(hour, minute)
+    }
 
     private fun formatTime(hour: Int, minute: Int): String {
         val period = if (hour < 12) "AM" else "PM"
-        val h = if (hour > 12) hour - 12 else if (hour == 0) 12 else hour
-        val m = minute.toString().padStart(2, '0')
-        return "$h:$m $period"
+        val h = when {
+            hour == 0 -> 12
+            hour > 12 -> hour - 12
+            else -> hour
+        }
+        return "$h:${minute.toString().padStart(2, '0')} $period"
     }
 
     fun resetState() {
