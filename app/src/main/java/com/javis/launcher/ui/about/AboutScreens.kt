@@ -13,8 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.item
+import androidx.compose.foundation.lazy.*
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.javis.launcher.data.local.ConversationDao
