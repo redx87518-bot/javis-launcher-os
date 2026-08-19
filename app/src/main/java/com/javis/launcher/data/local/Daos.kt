@@ -54,6 +54,9 @@ interface AppDao {
     @Query("SELECT * FROM installed_apps WHERE appName LIKE '%' || :query || '%' OR category LIKE '%' || :query || '%'")
     suspend fun searchApps(query: String): List<InstalledAppEntity>
 
+    @Query("SELECT * FROM installed_apps WHERE packageName = :packageName LIMIT 1")
+    suspend fun getAppByPackage(packageName: String): InstalledAppEntity?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertApps(apps: List<InstalledAppEntity>)
 
