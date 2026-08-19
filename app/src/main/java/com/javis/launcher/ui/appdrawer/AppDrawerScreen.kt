@@ -153,11 +153,13 @@ private fun EntityGrid(
         rows.forEach { row ->
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
                 row.forEach { app ->
-                    AppTile(
-                        app = app,
-                        onTap = { viewModel.launchApp(app.packageName) },
-                        onLongPress = { navController.navigate("app_intelligence/${app.packageName}") }
-                    )
+                    Box(Modifier.weight(1f)) {
+                        AppTile(
+                            app = app,
+                            onTap = { viewModel.launchApp(app.packageName) },
+                            onLongPress = { navController.navigate("app_intelligence/${app.packageName}") }
+                        )
+                    }
                 }
                 repeat(4 - row.size) { Spacer(Modifier.weight(1f)) }
             }
@@ -170,7 +172,6 @@ fun AppTile(app: InstalledAppEntity, onTap: () -> Unit, onLongPress: () -> Unit)
     var fav by remember { mutableStateOf(app.isFavorite) }
     Box(
         modifier = Modifier
-            .weight(1f)
             .clickable(onClick = onTap)
             .pointerInput(Unit) { detectTapGestures(onLongPress = { onLongPress() }) },
         contentAlignment = Alignment.Center
