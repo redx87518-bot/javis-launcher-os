@@ -5,7 +5,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
-import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -167,26 +168,29 @@ private fun EntityGrid(
 @Composable
 fun AppTile(app: InstalledAppEntity, onTap: () -> Unit, onLongPress: () -> Unit) {
     var fav by remember { mutableStateOf(app.isFavorite) }
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Box(
         modifier = Modifier
             .weight(1f)
-            .combinedClickable(onClick = onTap, onLongClick = onLongPress)
+            .clickable(onClick = onTap)
+            .pointerInput(Unit) { detectTapGestures(onLongPress = { onLongPress() }) },
+        contentAlignment = Alignment.Center
     ) {
-        Box(
-            modifier = Modifier
-                .size(54.dp)
-                .background(JavisBgElevated, RoundedCornerShape(14.dp))
-                .border(1.dp, JavisGlassBorder, RoundedCornerShape(14.dp)),
-            contentAlignment = Alignment.Center
-        ) {
-            Text(app.appName.take(1).uppercase(), style = MaterialTheme.typography.titleLarge.copy(color = JavisRed))
-            if (fav) {
-                Icon(Icons.Default.Star, null, tint = JavisGold, modifier = Modifier.align(Alignment.TopEnd).size(14.dp))
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Box(
+                modifier = Modifier
+                    .size(54.dp)
+                    .background(JavisBgElevated, RoundedCornerShape(14.dp))
+                    .border(1.dp, JavisGlassBorder, RoundedCornerShape(14.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(app.appName.take(1).uppercase(), style = MaterialTheme.typography.titleLarge.copy(color = JavisRed))
+                if (fav) {
+                    Icon(Icons.Default.Star, null, tint = JavisGold, modifier = Modifier.align(Alignment.TopEnd).size(14.dp))
+                }
             }
+            Spacer(Modifier.height(4.dp))
+            Text(app.appName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
         }
-        Spacer(Modifier.height(4.dp))
-        Text(app.appName, style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
     }
 }
 
