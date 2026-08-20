@@ -9,7 +9,13 @@ class JavisAccessibilityService : AccessibilityService() {
 
     private var currentPackage: String = ""
 
+    companion object {
+        /** Static handle so the UI can request a live screen description. */
+        var instance: JavisAccessibilityService? = null
+    }
+
     override fun onServiceConnected() {
+        instance = this
         serviceInfo = AccessibilityServiceInfo().apply {
             eventTypes = AccessibilityEvent.TYPES_ALL_MASK
             feedbackType = AccessibilityServiceInfo.FEEDBACK_GENERIC
@@ -17,6 +23,11 @@ class JavisAccessibilityService : AccessibilityService() {
                     AccessibilityServiceInfo.FLAG_REQUEST_ENHANCED_WEB_ACCESSIBILITY
             notificationTimeout = 100
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        if (instance == this) instance = null
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -50,6 +61,56 @@ class JavisAccessibilityService : AccessibilityService() {
             }
             searchField.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, bundle)
             return true
+        }
+        return false
+    }
+
+    /** Build a textual description of the currently visible screen (spec #10, #34). */
+    fun describeScreen(): String {
+        val root = rootInActiveWindow ?: return "No screen information available."
+        val sb = StringBuilder()
+        sb.append("Package: ${root.packageName}\n")
+        collectInfo(root, sb, 0)
+        return if (sb.isEmpty()) "Screen appears empty." else sb.toString().take(4000)
+    }
+
+    private fun collectInfo(node: AccessibilityNodeInfo?, sb: StringBuilder, depth: Int) {
+        if (node == null || sb.length > 3500) return
+        val cls = node.className?.toString()?.substringAfterLast('.') ?: ""
+        val text = node.text?.toString().orEmpty()
+        val desc = node.contentDescription?.toString().orEmpty()
+        val clickable = node.isClickable
+        val editable = node.isEditable
+        val info = when {
+            editable -> "[input] ${desc.ifBlank { text }}"
+            text.isNotBlank() -> text
+            desc.isNotBlank() -> desc
+            else -> ""
+        }
+        if (info.isNotBlank()) {
+            sb.append("${"  ".repeat(depth.coerceAtMost(6))}$cls: $info")
+            if (clickable) sb.append(" (tap)")
+            sb.append("\n")
+        }
+        for (i in 0 until node.childCount) {
+            collectInfo(node.getChild(i), sb, depth + 1)
+        }
+    }
+
+    /** Find a clickable element by visible text and tap it (semantic-first automation). */
+    fun findAndClickByText(text: String): Boolean {
+        val root = rootInActiveWindow ?: return false
+        return clickMatching(root, text.lowercase())
+    }
+
+    private fun clickMatching(node: AccessibilityNodeInfo?, target: String): Boolean {
+        if (node == null) return false
+        val t = (node.text?.toString() ?: node.contentDescription?.toString() ?: "").lowercase()
+        if (t.contains(target) && (node.isClickable || node.isFocusable)) {
+            return node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
+        }
+        for (i in 0 until node.childCount) {
+            if (clickMatching(node.getChild(i), target)) return true
         }
         return false
     }

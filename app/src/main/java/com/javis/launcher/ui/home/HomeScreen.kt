@@ -209,6 +209,13 @@ fun HomeScreen(
                                 textAlign = TextAlign.Center
                             )
                         }
+                        Spacer(Modifier.height(6.dp))
+                        TextButton(onClick = { navController.navigate("voice") }) {
+                            Text(
+                                "VOICE MODE",
+                                style = MaterialTheme.typography.labelSmall.copy(color = JavisTextDim, letterSpacing = 2.sp)
+                            )
+                        }
                     }
                 }
             }
@@ -227,7 +234,7 @@ fun HomeScreen(
                     unreadCount = unreadCount,
                     onChatTap = { navController.navigate("conversation") },
                     onMemoryTap = { navController.navigate("memory") },
-                    onNotifTap = { navController.navigate("conversation") }
+                    onNotifTap = { navController.navigate("notifications") }
                 )
             }
 

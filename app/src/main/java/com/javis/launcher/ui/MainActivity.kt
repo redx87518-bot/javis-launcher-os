@@ -10,13 +10,22 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.javis.launcher.services.JavisForegroundService
+import com.javis.launcher.ui.about.AboutScreen
+import com.javis.launcher.ui.about.PrivacyScreen
+import com.javis.launcher.ui.appdrawer.AppDrawerScreen
+import com.javis.launcher.ui.appdrawer.AppIntelligenceScreen
 import com.javis.launcher.ui.conversation.ConversationScreen
 import com.javis.launcher.ui.home.HomeScreen
 import com.javis.launcher.ui.memory.MemoryScreen
 import com.javis.launcher.ui.mission.MissionControlScreen
+import com.javis.launcher.ui.notifications.NotificationIntelligenceScreen
 import com.javis.launcher.ui.onboarding.OnboardingScreen
+import com.javis.launcher.ui.screen.ScreenUnderstandingScreen
 import com.javis.launcher.ui.settings.SettingsScreen
+import com.javis.launcher.ui.skills.SkillDetailScreen
+import com.javis.launcher.ui.skills.SkillsScreen
 import com.javis.launcher.ui.theme.JavisTheme
+import com.javis.launcher.ui.voice.VoiceModeScreen
 import dagger.hilt.android.AndroidEntryPoint
 import javax.inject.Inject
 import android.content.SharedPreferences
@@ -56,6 +65,39 @@ class MainActivity : ComponentActivity() {
                     }
                     composable("memory") {
                         MemoryScreen(navController = navController)
+                    }
+                    composable("apps") {
+                        AppDrawerScreen(navController = navController)
+                    }
+                    composable("skills") {
+                        SkillsScreen(navController = navController)
+                    }
+                    composable("skill_detail/{skillId}") { backStackEntry ->
+                        SkillDetailScreen(
+                            navController = navController,
+                            skillId = backStackEntry.arguments?.getString("skillId") ?: ""
+                        )
+                    }
+                    composable("app_intelligence/{packageName}") { backStackEntry ->
+                        AppIntelligenceScreen(
+                            navController = navController,
+                            packageName = backStackEntry.arguments?.getString("packageName") ?: ""
+                        )
+                    }
+                    composable("notifications") {
+                        NotificationIntelligenceScreen(navController = navController)
+                    }
+                    composable("voice") {
+                        VoiceModeScreen(navController = navController)
+                    }
+                    composable("screen_understanding") {
+                        ScreenUnderstandingScreen(navController = navController)
+                    }
+                    composable("about") {
+                        AboutScreen(navController = navController)
+                    }
+                    composable("privacy") {
+                        PrivacyScreen(navController = navController)
                     }
                 }
             }
